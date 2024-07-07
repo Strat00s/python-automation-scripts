@@ -1,0 +1,6 @@
+# server: "smtp.address.com"
+# port: 123
+# sender_addr: "sender@email.com"
+# username: "sender_username"
+# password: "sender_password"
+
