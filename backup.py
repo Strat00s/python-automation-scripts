@@ -8,9 +8,9 @@ import send_email
 def run_command(command: str)-> list:
     try:
         proc = subprocess.run(command.strip().split(" "), check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        return [True, proc.stdout]
+        return [True, proc.stdout.decode("utf-8").strip()]
     except subprocess.CalledProcessError as e:
-        return [False, e.output, e.returncode]
+        return [False, e.output.decode("utf-8").strip(), e.returncode]
 
 
 def run_backup(name: str, config: dict, smtp: dict):
@@ -87,13 +87,9 @@ def run_backup(name: str, config: dict, smtp: dict):
     if commands is not None:
         for command in commands:
             ret =  run_command(command)
-            logs += f"Running command: {command}\n"
-            if ret[0]:
-                logs += "Output:\n"
-                logs += f"{ret[1]}\n\n"
-            else:
-                logs += "Output:\n"
-                logs += f"{ret[1]}\n"
+            logs += f"Running command {{{command}}}:\n"
+            logs += f"{ret[1]}\n\n"
+            if not ret[0]:
                 logs += f"Return code: {ret[2]}\n"
                 logs += "Stopping now."
                 print(logs)
