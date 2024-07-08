@@ -1,6 +1,8 @@
 import argparse
 import yaml
+import json
 import os
+import stat
 import subprocess
 import send_email
 
@@ -79,32 +81,92 @@ def run_backup(name: str, config: dict, smtp: dict):
     #send_email.send(smtp, "DataServer - Borg", email, f"Backup {name} started", body)
     print(body)
 
-    logs = "Starting...\n"
-    logs += "\n########################################################################\n\n"
+    logs = "Starting...\n\n"
 
+    #logs += "############################# Runing Commands #############################\n\n"
+    #logs += "############################ Stopping Services ############################\n\n"
+    #logs += "########################### Changing Permissions ##########################\n\n"
+    #logs += "############################### Runing borg ###############################\n\n"
+    #logs += "########################## Restoring Permissions ##########################\n\n"
+    #logs += "############################ Starting Services ############################\n\n"
+    
 
     # 2. Run command
     if commands is not None:
+        logs += "############################# Runing Commands #############################\n\n"
         for command in commands:
             ret =  run_command(command)
             logs += f"Running command {{{command}}}:\n"
-            logs += f"{ret[1]}\n\n"
+            logs += f"{ret[1]}\n"
             if not ret[0]:
                 logs += f"Return code: {ret[2]}\n"
-                logs += "Stopping now."
+                logs += "Stopping now!"
                 print(logs)
                 #send_email.send(smtp, "DataServer - Borg", email, f"Backup {name} failed", logs)
                 return False
-        logs += "########################################################################\n\n"
+            logs += "\n"
+
+
+    # 3. Stop service
+    #if services is not None:
+    #    logs += "############################ Stopping Services ############################\n\n"
+    #    for service in services:
+    #        ret = False
+    #        if services[service] == "system":
+    #            ret = run_command(f"service {service} stop")
+    #        elif services[service] == "docker":
+    #            ret = run_command(f"docker stop {service}")
+    #        else:
+    #            logs += f'Unknown service type "{services[service]}"'
+    #            logs += "Stopping now."
+    #            print(logs)
+    #            #send_email.send(smtp, "DataServer - Borg", email, f"Backup {name} failed", logs)
+    #            return False
+    #        
+    #        if ret[0]:
+    #            logs += f'Stopped service {service}:\n'
+    #            logs += f"{ret[1]}\n\n"
+    #        else:
+    #            logs += f'Failed to stop service {service}:\n'
+    #            logs += f"{ret[1]}\n"
+    #            logs += f"Return code: {ret[2]}\n"
+    #            logs += "Stopping now!"
+    #            print(logs)
+    #            #send_email.send(smtp, "DataServer - Borg", email, f"Backup {name} failed", logs)
+    #            return False
+
+
+    # 4. Save current permission
+    # 5. Make paths read only
+    logs += "########################### Changing Permissions ##########################\n\n"
+    permissions = {}
+
+    for path in paths:
+        for root, dirs, files in os.walk(path):
+            for name in dirs + files:
+                tmp_path = os.path.join(root, name)
+                print(f"{tmp_path}: {oct(os.stat(path).st_mode)[-3:]}")
+                permissions[tmp_path] = oct(os.stat(path).st_mode)[-3:]
+    
+    with open("perms.json", "w") as f:
+        yaml.safe_dump(permissions, f)
 
     print(logs)
 
-    # 3. Stop service
-    # 4. Save current permission
-    # 5. Make paths read only
+    return True
+
     # 6. Backup everything via borg (data, service, extra)
+    logs += "############################### Runing borg ###############################\n\n"
+
+
     # 7. Restore permissions
+    logs += "########################## Restoring Permissions ##########################\n\n"
+
+
     # 8. Start service
+    logs += "############################ Starting Services ############################\n\n"
+
+
     # 9. Send email about report
 
 
