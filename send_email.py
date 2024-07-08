@@ -4,10 +4,11 @@ import ssl
 import json
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
 
 
-def send(config: dict, sender_name: str, to_email: str, subject: str, body: str):
-    print(config, sender_name, to_email, subject, body)
+def send(config: dict, sender_name: str, to_email: str, subject: str, body: str, attachments: dict = None) -> bool:
 
     for key in config:
         if key not in ["server", "port", "sender_addr", "username", "password"]:
@@ -27,6 +28,17 @@ def send(config: dict, sender_name: str, to_email: str, subject: str, body: str)
 
     # Add body to_email the email
     message.attach(MIMEText(body, "plain"))
+
+    if attachments is not None:
+        for filename, content in attachments.items():
+            part = MIMEBase("application", "octet-stream")
+            part.set_payload(content)
+            encoders.encode_base64(part)
+            part.add_header(
+                "Content-Disposition",
+                f"attachment; filename={filename}",
+            )
+            message.attach(part)
 
     # Create a secure SSL context
     context = ssl.create_default_context()
