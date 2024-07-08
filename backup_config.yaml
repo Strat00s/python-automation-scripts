@@ -3,6 +3,9 @@
 #   repo:  # borg repository to which to backup
 #   pass:  # repo passphrase
 #   keep: [0, 0, 0, 0] # keep N daily, weekly, monthly, yearly backups. If not list, keep last N backups
-#   services: # list of services to stop before backup and start afterwards
+#   email: ## recipient of email logs
+#   commands: # list of commands to be executed before starting. Will run as root!!!
+#   services: # services to stop before backup and start afterwards
 #     name1: type    # docker, system
 #     name2: type    # docker, system
+
