@@ -26,7 +26,7 @@ class logger:
         self.text = ""
 
 #TODO fix it everywhere; changed from [bool, str, int] to [int, str]
-def run_proccess(command:str, echo = False)-> tuple[int, str]:
+def run_proccess(command:str, echo = False) -> tuple[int, str]:
     output = ""
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, shell=True)
     
@@ -42,7 +42,7 @@ def run_proccess(command:str, echo = False)-> tuple[int, str]:
     return (process.returncode, output)
 
 
-def create_header(message:str, width:int):
+def create_header(message:str, width:int) -> str:
     padding = (width - len(message) - 2) // 2
     header = f"{'#' * padding} {message} {'#' * padding}"
     if len(header) < width:
@@ -50,16 +50,26 @@ def create_header(message:str, width:int):
     return header
 
 
-def run_commands(commands:list, type:str, log:logger) -> dict:
+def shorten_text(text:str, max_lines:int) -> str:
+    lines = text.split('\n')
+    if len(lines) > max_lines:
+        half_lines = max_lines // 2
+        start_lines = lines[:half_lines]
+        end_lines = lines[-half_lines:]
+        return '\n'.join(start_lines) + '\n...\n' + '\n'.join(end_lines)
+    return text
+
+
+def run_commands(commands:list, pos:str, log:logger) -> dict:
     attachments = dict()
     log.add(f"\n{create_header('Runing Commands', HEADER_WIDTH)}\n\n", True)
     for i, command in enumerate(commands):
         log.add(f'Running {i + 1}. command "{command}":\n', True)
-        ret = run_proccess(command, False)
-        log.add(f"{ret[1][:LOG_LEN]}{'\n...\n' if len(ret[1]) > LOG_LEN else '\n'}")
-        log.add(f"Return code: {ret[2]}\n", True)
-        if len(ret[1]) > LOG_LEN:
-            attachments[f"{type}_cmd_{i + 1}.txt"] = ret[1]
+        ret = run_proccess(command, True)
+        log.add(shorten_text(ret[1], LOG_LEN).strip() + "\n")
+        log.add(f"Return code: {ret[0]}\n\n", True)
+        if ret[1].count("\n") > LOG_LEN:
+            attachments[f"{pos}_cmd_{i + 1}.txt"] = ret[1]
     return attachments
 
 
@@ -70,17 +80,20 @@ def stop_start_service(services:dict, start:bool, log:logger) -> dict:
         if key not in ["system", "docker"]:
             continue
 
+        start_stop = "start" if start else "stop"
+
         for service in services[key]:
             log.add(f'Stopped service {service}:\n', True)
             if key == "system":
-                ret = run_proccess(f"service {service} stop", False)
+                ret = run_proccess(f"service {service} {start_stop}", True)
             if key == "docker":
-                ret = run_proccess(f"docker stop {service}", False)
+                ret = run_proccess(f"docker {start_stop} {service}", True)
 
-            log.add(f"{ret[1][:LOG_LEN]}{'\n...\n' if len(ret[1]) > LOG_LEN else '\n'}")
-            log.add(f"Return code: {ret[2]}\n", True)
-            if len(ret[1]) > LOG_LEN:
-                attachments[f"{service}_stop.txt"] = ret[1]
+            log.add(shorten_text(ret[1], LOG_LEN).strip() + "\n")
+            log.add(f"Return code: {ret[0]}\n\n", True)
+            if ret[1].count("\n") > LOG_LEN:
+                attachments[f"{service}_{start_stop}.txt"] = ret[1]
+    return attachments
 
 
 def run_backup(backup_name: str, config: dict, smtp: dict):
@@ -107,20 +120,21 @@ def run_backup(backup_name: str, config: dict, smtp: dict):
 
     if commands is not None and "pre_stop" in commands.keys():
         body += f"  {step}. Run command(s):\n"
-        for command in commands:
+        for command in commands["pre_stop"]:
             body += f"    {command}\n"
         step += 1
 
     if services is not None:
         body += f"  {step}. Stop service(s):\n"
-        for service in services:
-            body += f"    {service}\n"
+        for key in services:
+            for service in services[key]:
+                body += f"    {service} ({key})\n"
         step += 1
         step += 1
 
     if commands is not None and "post_stop" in commands.keys():
         body += f"  {step}. Run command(s):\n"
-        for command in commands:
+        for command in commands["post_stop"]:
             body += f"    {command}\n"
         step += 1
 
@@ -129,7 +143,7 @@ def run_backup(backup_name: str, config: dict, smtp: dict):
 
     if commands is not None and "pre_start" in commands.keys():
         body += f"  {step}. Run command(s):\n"
-        for command in commands:
+        for command in commands["pre_start"]:
             body += f"    {command}\n"
         step += 1
 
@@ -139,7 +153,7 @@ def run_backup(backup_name: str, config: dict, smtp: dict):
     
     if commands is not None and "post_start" in commands.keys():
         body += f"  {step}. Run command(s):\n"
-        for command in commands:
+        for command in commands["post_start"]:
             body += f"    {command}\n"
         step += 1
 
@@ -209,7 +223,7 @@ def run_backup(backup_name: str, config: dict, smtp: dict):
         attachments["borg.txt"] = ret[1]
 
         log.add(f"{results}\n")
-        log.add(f"Return code: {ret[2]}\n", True)
+        log.add(f"Return code: {ret[0]}\n\n", True)
         
         if ret[0] != 0:
             log.add("Backup failed!\n")
@@ -251,17 +265,17 @@ def run_backup(backup_name: str, config: dict, smtp: dict):
 
         log.add(f'Running "{command}":\n')
         ret =  run_proccess(command, True)
-        log.add(f"{ret[1][:LOG_LEN]}{'\n...\n' if len(ret[1]) > LOG_LEN else '\n'}")
-        log.add(f"Return code: {ret[2]}\n", True)
-        if len(ret[1]) > LOG_LEN:
+        log.add(shorten_text(ret[1], LOG_LEN).strip() + "\n")
+        log.add(f"Return code: {ret[0]}\n\n", True)
+        if ret[1].count("\n") > LOG_LEN:
             attachments[f"borg_prune.txt"] = ret[1]
 
         command = f"borg compact --progress --verbose {repo}"
         log.add(f'Running "{command}":\n')
         ret =  run_proccess(command, True)
-        log.add(f"{ret[1][:LOG_LEN]}{'\n...\n' if len(ret[1]) > LOG_LEN else '\n'}")
-        log.add(f"Return code: {ret[2]}\n", True)
-        if len(ret[1]) > LOG_LEN:
+        log.add(shorten_text(ret[1], LOG_LEN).strip() + "\n")
+        log.add(f"Return code: {ret[0]}\n\n", True)
+        if ret[1].count("\n") > LOG_LEN:
             attachments[f"borg_compact.txt"] = ret[1]
 
 
