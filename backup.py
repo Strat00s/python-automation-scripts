@@ -62,9 +62,13 @@ def run_backup(backup_name: str, config: dict, smtp: dict):
     keep = None
     if "keep" in config.keys():
         keep = config["keep"]
+    keep = None
+    if "keep" in config.keys():
+        keep = config["keep"]
 
 
     # 1. Send email about start
+    body = f'Backup "{backup_name}" is starting.\n\n'
     body = f'Backup "{backup_name}" is starting.\n\n'
     body += "The following steps will be executed:\n"
     step = 1
@@ -75,16 +79,21 @@ def run_backup(backup_name: str, config: dict, smtp: dict):
             body += f"    {command}\n"
         step += 1
 
+
     if services is not None:
         body += f"  {step}. Stop service(s):\n"
         for service in services:
             body += f"    {service}\n"
         step += 1
+        step += 1
 
     body += f"  {step}. Run borg backup.\n"
     step += 1
 
+
     if services is not None:
+        body += f"  {step}. Start all services.\n"
+        step += 1
         body += f"  {step}. Start all services.\n"
         step += 1
 
@@ -93,7 +102,15 @@ def run_backup(backup_name: str, config: dict, smtp: dict):
 
     if not send_email.send(smtp, "DataServer - Borg backup", email, f'Backup "{backup_name}" started', body):
         print("Failed to send email!\n")
+    if keep is not None:
+        body += f"  {step}. Prune and compact repository.\n"
 
+    if not send_email.send(smtp, "DataServer - Borg backup", email, f'Backup "{backup_name}" started', body):
+        print("Failed to send email!\n")
+
+    log = logger()
+
+    log.add("Starting...\n", True)
     log = logger()
 
     log.add("Starting...\n", True)
@@ -104,14 +121,23 @@ def run_backup(backup_name: str, config: dict, smtp: dict):
     # 2. Run command
     if commands is not None:
         log.add("\n############################# Runing Commands #############################\n\n", True)
+        log.add("\n############################# Runing Commands #############################\n\n", True)
         for i, command in enumerate(commands):
             ret =  run_command(command, True, True)
             if ret[0]:
                 log.add(f'Running {i + 1}. command "{command}":\n', True)
+                log.add(f'Running {i + 1}. command "{command}":\n', True)
                 if ret[1].count("\n") <= LOG_LEN:
+                    log.add(f"{ret[1]}\n\n", True)
                     log.add(f"{ret[1]}\n\n", True)
                 attachments[f"cmd_{i + 1}.txt"] = ret[1]
             else:
+                log.add(f'Failed to run "{command}":\n', True)
+                log.add(f"{ret[1]}\n", True)
+                log.add(f"Return code: {ret[2]}\n", True)
+                log.add("Stopping now!\n", True)
+                if not send_email.send(smtp, "DataServer - Borg backup", email, f'Backup "{backup_name}" failed', log.get(), attachments):
+                    print("Failed to send email!\n")
                 log.add(f'Failed to run "{command}":\n', True)
                 log.add(f"{ret[1]}\n", True)
                 log.add(f"Return code: {ret[2]}\n", True)
@@ -122,6 +148,7 @@ def run_backup(backup_name: str, config: dict, smtp: dict):
 
     # 3. Stop service
     if services is not None:
+        log.add("\n############################ Stopping Services ############################\n\n", True)
         log.add("\n############################ Stopping Services ############################\n\n", True)
         for i, service in enumerate(services):
             ret = False
@@ -135,14 +162,28 @@ def run_backup(backup_name: str, config: dict, smtp: dict):
                 
                 if not send_email.send(smtp, "DataServer - Borg backup", email, f'Backup "{backup_name}" failed', log.get(), attachments):
                     print("Failed to send email!\n")
+                log.add(f'Unknown service type "{services[service]}"', True)
+                log.add("Stopping now!\n", True)
+                
+                if not send_email.send(smtp, "DataServer - Borg backup", email, f'Backup "{backup_name}" failed', log.get(), attachments):
+                    print("Failed to send email!\n")
                 return False
             
             if ret[0]:
                 log.add(f'Stopped service {service}:\n', True)
+                log.add(f'Stopped service {service}:\n', True)
                 if ret[1].count("\n") <= LOG_LEN:
+                    log.add(f"{ret[1]}\n\n", True)
                     log.add(f"{ret[1]}\n\n", True)
                 attachments[f"service_{i + 1}_stop.txt"] = ret[1]
             else:
+                log.add(f'Failed to stop service {service}:\n', True)
+                log.add(f"{ret[1]}\n", True)
+                log.add(f"Return code: {ret[2]}\n", True)
+                log.add("Stopping now!\n", True)
+                
+                if not send_email.send(smtp, "DataServer - Borg backup", email, f'Backup "{backup_name}" failed', log.get(), attachments):
+                    print("Failed to send email!\n")
                 log.add(f'Failed to stop service {service}:\n', True)
                 log.add(f"{ret[1]}\n", True)
                 log.add(f"Return code: {ret[2]}\n", True)
@@ -155,6 +196,8 @@ def run_backup(backup_name: str, config: dict, smtp: dict):
 
     # 4. Backup everything via borg (data, service, extra)
     log.add("\n############################### Runing borg ###############################\n\n", True)
+    # 4. Backup everything via borg (data, service, extra)
+    log.add("\n############################### Runing borg ###############################\n\n", True)
 
     # check if repo exists and create it if it doesn't
     os.environ["BORG_PASSPHRASE"] = config["pass"]
@@ -165,13 +208,21 @@ def run_backup(backup_name: str, config: dict, smtp: dict):
         # save passphrase
         if ret[2] == 0:
             attachments[f"{backup_name}.key"] = ret[1]
+        if ret[2] == 0:
+            attachments[f"{backup_name}.key"] = ret[1]
         else:
+            log.add("Failed to save passphrase. Stopping now!\n", True)
+            
+            if not send_email.send(smtp, "DataServer - Borg backup", email, f'Backup "{backup_name}" failed', log.get(), attachments):
+                print("Failed to send email!\n")
             log.add("Failed to save passphrase. Stopping now!\n", True)
             
             if not send_email.send(smtp, "DataServer - Borg backup", email, f'Backup "{backup_name}" failed', log.get(), attachments):
                 print("Failed to send email!\n")
             return False
 
+    elif f"A repository already exists at {repo}." in ret[1]:
+        log.add(f'Repository "{repo}" already exists.\n\n', True)
     elif f"A repository already exists at {repo}." in ret[1]:
         log.add(f'Repository "{repo}" already exists.\n\n', True)
     
@@ -186,8 +237,17 @@ def run_backup(backup_name: str, config: dict, smtp: dict):
     if ret[0]:
         log.add(f'Running "{command}":\n')
         log.add(f"{results}\n")
+        log.add(f'Running "{command}":\n')
+        log.add(f"{results}\n")
 
     else:
+        log.add(f'Running "{command}" failed:\n')
+        log.add(f"Output: {results}\n")
+        log.add(f"Return code: {ret[2]}\n", True)
+        log.add("Stopping now!\n", True)
+        
+        if not send_email.send(smtp, "DataServer - Borg backup", email, f'Backup "{backup_name}" failed', log.get(), attachments):
+            print("Failed to send email!\n")
         log.add(f'Running "{command}" failed:\n')
         log.add(f"Output: {results}\n")
         log.add(f"Return code: {ret[2]}\n", True)
@@ -199,7 +259,9 @@ def run_backup(backup_name: str, config: dict, smtp: dict):
 
 
     # 5. Start service
+    # 5. Start service
     if services is not None:
+        log.add("\n############################ Starting Services ############################\n\n", True)
         log.add("\n############################ Starting Services ############################\n\n", True)
         for i, service in enumerate(services):
             ret = False
@@ -210,10 +272,19 @@ def run_backup(backup_name: str, config: dict, smtp: dict):
     
             if ret[0]:
                 log.add(f'Started service {service}:\n', True)
+                log.add(f'Started service {service}:\n', True)
                 if ret[1].count("\n") < LOG_LEN:
+                    log.add(f"{ret[1]}\n\n", True)
                     log.add(f"{ret[1]}\n\n", True)
                 attachments[f"service_{i + 1}_start.txt"] = ret[1]
             else:
+                log.add(f'Failed to start service {service}:\n', True)
+                log.add(f"{ret[1]}\n", True)
+                log.add(f"Return code: {ret[2]}\n", True)
+                log.add("Stopping now!\n", True)
+                
+                if not send_email.send(smtp, "DataServer - Borg backup", email, f'Backup "{backup_name}" failed', log.get(), attachments):
+                    print("Failed to send email!\n")
                 log.add(f'Failed to start service {service}:\n', True)
                 log.add(f"{ret[1]}\n", True)
                 log.add(f"Return code: {ret[2]}\n", True)
@@ -295,6 +366,77 @@ def run_backup(backup_name: str, config: dict, smtp: dict):
         if not send_email.send(smtp, "DataServer - Borg backup", email, f'Backup "{backup_name}" finished', log.get(), attachments):
             print("Failed to send email!\n")
 
+    # 7. Prune and compact
+    if keep is not None:
+        log.add("\n\n\nPrune and compact results will be sent in next email.\n\n\n", True)
+
+        # 8. Send email about report
+        if not send_email.send(smtp, "DataServer - Borg backup", email, f'Backup "{backup_name}" finished', log.get(), attachments):
+            print("Failed to send email!\n")
+
+        attachments = dict()
+        log.clear()
+        log.add("\n############################# Prune & Compact #############################\n\n", True)
+
+        command = "borg prune --stats --verbose --info --progress "
+        if isinstance(keep, list):
+            keep = [int(x) for x in keep]
+            if keep[0] > 0:
+                command += f"--keep-daily {keep[0]} "
+            if keep[1] > 0:
+                command += f"--keep-weekly {keep[1]} "
+            if keep[2] > 0:
+                command += f"--keep-monthly {keep[2]} "
+            if keep[3] > 0:
+                command += f"--keep-yearly {keep[3]} "
+        else:
+            if isinstance(keep, str):
+                keep = int(keep)
+            command += f"--keep-last {keep} "
+        command += repo
+
+        ret =  run_command(command, True)
+        if ret[0]:
+            log.add(f'Running "{command}":\n')
+            if ret[1].count("\n") <= LOG_LEN:
+                log.add(f"{ret[1]}\n\n\n")
+            attachments[f"borg_prune.txt"] = ret[1]
+        else:
+            log.add(f'Failed to run "{command}":\n')
+            log.add(f"{ret[1]}\n")
+            log.add(f"Return code: {ret[2]}\n", True)
+            log.add("Stopping now!\n", True)
+            
+            if not send_email.send(smtp, "DataServer - Borg prune", email, f'Pruning "{backup_name}" failed', log.get(), attachments):
+                print("Failed to send email!\n")
+            return False
+
+        command = f"borg compact --progress --verbose {repo}"
+        ret =  run_command(command, True)
+        if ret[0]:
+            log.add(f'Running "{command}":\n')
+            if ret[1].count("\n") <= LOG_LEN:
+                log.add(f"{ret[1]}\n\n")
+            attachments[f"borg_compact.txt"] = ret[1]
+        else:
+            log.add(f'Failed to run "{command}":\n')
+            log.add(f"{ret[1]}\n")
+            log.add(f"Return code: {ret[2]}\n", True)
+            log.add("Stopping now!\n", True)
+            
+            if not send_email.send(smtp, "DataServer - Borg compact", email, f'Compact "{backup_name}" failed', log.get(), attachments):
+                print("Failed to send email!\n")
+            return False
+        
+
+        # 9. Send email about prune 
+        if not send_email.send(smtp, "DataServer - Borg prune & compact", email, f'Prune & compact "{backup_name}" finished', log.get(), attachments):
+            print("Failed to send email!\n")
+    else:
+        # 8. Send email about report
+        if not send_email.send(smtp, "DataServer - Borg backup", email, f'Backup "{backup_name}" finished', log.get(), attachments):
+            print("Failed to send email!\n")
+
     return True
 
 
@@ -303,6 +445,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog="Borg backup runner", description="Simple script for running borg backups")
     parser.add_argument("-c", "--config", required=True, help='backup configurations yaml file')
     parser.add_argument("-s", "--smtp",   required=True, help='smtp yaml configuration for sending emails ("server", "port", "sender_addr", "username", "password")')
+
 
     args = parser.parse_args()
 
@@ -315,6 +458,9 @@ if __name__ == "__main__":
         smtp = yaml.safe_load(f)
 
     for key in config:
+        ret = run_backup(key, config[key], smtp)
+        os.environ["BORG_PASSPHRASE"] = ""
+        if ret != True:
         ret = run_backup(key, config[key], smtp)
         os.environ["BORG_PASSPHRASE"] = ""
         if ret != True:
