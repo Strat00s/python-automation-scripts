@@ -83,7 +83,7 @@ def stop_start_service(services:dict, start:bool, log:logger) -> dict:
         start_stop = "start" if start else "stop"
 
         for service in services[key]:
-            log.add(f'Stopped service {service}:\n', True)
+            log.add(f'Stopping service {service}:\n', True)
             if key == "system":
                 ret = run_proccess(f"service {service} {start_stop}", True)
             if key == "docker":
