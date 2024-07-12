@@ -29,14 +29,14 @@ def get_status(smtp_cfg:dict|None = None, sender:str|None = None, recipient:str|
     attachments[f"status.txt"] = ret[1]
 
     if smtp_cfg is not None and recipient is not None:
-        if not send_email.send(smtp_cfg, sender if sender is not None else smtp_cfg["sender_addr"], recipient, "ZFS Status", log.get(), attachments):
+        if not send_email.send(smtp_cfg, sender if sender is not None else smtp_cfg["sender_addr"], recipient, "ZFS Pool Status", log.get(), attachments):
             print("Failed to send email!")
 
     return False if ret[0] else True
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(prog="ZFS status checker", description="Simple script for checking ZFS pool status")
+    parser = argparse.ArgumentParser(prog="ZFS pool status checker", description="Simple script for checking ZFS pool status")
     parser.add_argument("-r", "--recipient", help='Email recipient when using smtp')
     parser.add_argument("-s", "--sender", help='Sender name')
     parser.add_argument("-c", "--config", help='SMTP YAML configuration for sending emails ("server", "port", "sender_addr", "username", "password")')

@@ -21,7 +21,7 @@ HEADER_WIDTH = 80
 
 
 
-def run_scrub(extended:bool, smtp_cfg:dict|None = None, sender:str|None = None, recipient:str|None = None):
+def run_test(extended:bool, smtp_cfg:dict|None = None, sender:str|None = None, recipient:str|None = None):
     log = tools.logger()
     attachments = dict()
 
@@ -79,7 +79,7 @@ def run_scrub(extended:bool, smtp_cfg:dict|None = None, sender:str|None = None, 
     elif min([drives[x]['time'] for x in drives.keys()]) <= 1:
         sleep_t = 20
 
-    print("  DRIVE  | PROGRESS | REMAINING | FAILED | STATUS")
+    print("\n  DRIVE  | PROGRESS | REMAINING | FAILED | STATUS")
 
     while True:
         remove = []
@@ -148,6 +148,6 @@ if __name__ == "__main__":
             smtp = yaml.safe_load(f)
 
 
-    if not run_scrub(args.extended, smtp, args.sender, args.recipient):
+    if not run_test(args.extended, smtp, args.sender, args.recipient):
         print("Failed to get status!")
         exit(1)
