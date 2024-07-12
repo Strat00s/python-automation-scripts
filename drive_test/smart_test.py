@@ -118,7 +118,7 @@ def run_scrub(extended:bool, smtp_cfg:dict|None = None, sender:str|None = None, 
     log.add(f"{tools.create_header('Test Results', HEADER_WIDTH)}\n\n", True)
     for drive in drives:
         log.add(f"{drive}: {drives[drive]['status']}\n", True)
-        ret = tools.run_proccess("smartctl -a {drive}")
+        ret = tools.run_proccess(f"smartctl -a {drive}")
         attachments[f"{drive.strip('/').replace('/', '-')}_results.txt"] = ret[1]
 
     if smtp_cfg is not None and recipient is not None:
