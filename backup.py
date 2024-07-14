@@ -5,59 +5,11 @@ import stat
 import subprocess
 import datetime
 import send_email
+from tools import *
 
 
 LOG_LEN = 20
 HEADER_WIDTH = 80
-
-class logger:
-    def __init__(self):
-        self.text = ""
-
-    def add(self, y, echo = False):
-        if echo:
-            print(y)
-        self.text += y
-
-    def get(self):
-        return self.text
-
-    def clear(self):
-        self.text = ""
-
-#TODO fix it everywhere; changed from [bool, str, int] to [int, str]
-def run_proccess(command:str, echo = False) -> tuple[int, str]:
-    output = ""
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, shell=True)
-    
-    if echo:
-        while process.poll() is None:
-            for line in process.stdout:
-                print(line, end="")
-                output += line
-    else:
-        process.wait()
-        output = process.stdout.read()
-
-    return (process.returncode, output)
-
-
-def create_header(message:str, width:int) -> str:
-    padding = (width - len(message) - 2) // 2
-    header = f"{'#' * padding} {message} {'#' * padding}"
-    if len(header) < width:
-        header += "#"
-    return header
-
-
-def shorten_text(text:str, max_lines:int) -> str:
-    lines = text.split('\n')
-    if len(lines) > max_lines:
-        half_lines = max_lines // 2
-        start_lines = lines[:half_lines]
-        end_lines = lines[-half_lines:]
-        return '\n'.join(start_lines) + '\n...\n' + '\n'.join(end_lines)
-    return text
 
 
 def run_commands(commands:list, pos:str, log:logger) -> dict:
@@ -214,13 +166,8 @@ def run_backup(backup_name: str, config: dict, smtp: dict):
         log.add(f'Running "{command}":\n')
         ret = run_proccess(command, True)
         results = ret[1][ret[1].find("------------------------------------------------------------------------------"):]
-        max_len = 20*1000*1000
-        if len(ret[1]) > max_len:
-            half_length = max_len // 2
-            start = ret[1][:half_length]
-            end = ret[1][-half_length:]
-            ret[1] = f"{start}...{end}"
-        attachments["borg.txt"] = ret[1]
+        log.add(shorten_text(ret[1], LOG_LEN).strip() + "\n")
+        attachments["borg.txt"] = shorten_text(ret[1], 20000000)
 
         log.add(f"{results}\n")
         log.add(f"Return code: {ret[0]}\n\n", True)
