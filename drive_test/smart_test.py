@@ -53,7 +53,7 @@ def run_test(extended:bool, smtp_cfg:dict|None = None, sender:str|None = None, r
     # start smart
     log.add(f"{tools.create_header('S.M.A.R.T. Test Started', HEADER_WIDTH)}\n\n", True)
     for drive, data in drives.items():
-        ret = tools.run_proccess(f"smartctl -t {test_type} {drive}")
+        ret = tools.run_proccess(f"smartctl -t {'long' if test_type == 'extended' else 'short'} {drive}")
         if not ret[0]:
             log.add(f"{drive}: {data['time']} minute(s) remaining ({test_type})\n", True)
         else:
