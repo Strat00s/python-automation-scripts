@@ -244,11 +244,15 @@ if __name__ == "__main__":
 
     config = dict()
     smtp = dict()
-    with open(args.config) as f:
-        config = yaml.safe_load(f)
-    
+
     with open(args.smtp) as f:
         smtp = yaml.safe_load(f)
+
+    with open(args.config) as f:
+        yaml_str = f.read()
+        config = yaml.safe_load(yaml_str)
+        if not send_email.send(smtp, "DataServer - Borg Backup", "l.bastyr@seznam.cz", "Current backup configuration", "", {"config.yaml":yaml_str}):
+            print("Failed to send email!\n")
 
     for key in config:
         ret = run_backup(key, config[key], smtp)
